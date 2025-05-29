@@ -1,0 +1,36 @@
+<html lang="en"><head></head><body><scriptlanguage="javascript">
+
+
+<meta charset="UTF-8">
+<title>Redirect</title>
+<script>
+function base64DecodeUrl(str){
+    return decodeURIComponent(atob(str).split('').map(function(c) {
+        return '%' + ('00' + c.charCodeAt(0).toString(16)).slice(-2);
+    }).join(''));
+}
+
+window.onload = function() {
+    var hash = window.location.hash.substr(1); // Get the fragment after the '#'
+    var url;
+
+    if (hash && hash.substr(0, 4) === 'http') {
+        url = hash; // If the fragment starts with 'http', use it as the URL
+    } else {
+        if (hash.includes('/')) {
+        url = base64DecodeUrl(hash.split('/')[0])+hash.split('/')[1]; // If not, try to base64 decode it
+        } else {
+        url = base64DecodeUrl(hash); // If not, try to base64 decode it
+        }
+    }
+
+    if (url && /^(https?:\/\/)/.test(url)) { // Regex to check if the url starts with 'http://' or 'https://'
+        window.location.href = url; // If it's a valid URL, redirect
+    }
+};
+</script>
+
+
+
+
+</scriptlanguage="javascript"></body></html>
